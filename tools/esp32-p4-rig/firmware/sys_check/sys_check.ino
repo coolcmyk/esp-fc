@@ -52,6 +52,23 @@ uint32_t baudStart = 0;
 bool showStatus = true;
 uint32_t lastStatus = 0;
 
+// Motion commands must be typed twice within this window. Stray noise bytes on
+// the console UART must never start a motor by themselves.
+constexpr uint32_t CONFIRM_MS = 800;
+char pendingKey = 0;
+uint32_t pendingAt = 0;
+
+bool confirmed(char c) {
+  const uint32_t now = millis();
+  if (pendingKey == c && now - pendingAt <= CONFIRM_MS) {
+    pendingKey = 0;
+    return true;
+  }
+  pendingKey = c;
+  pendingAt = now;
+  return false;
+}
+
 uint32_t dutyFor(uint16_t us) {
   us = constrain(us, PULSE_MIN_US, PULSE_MAX_US);
   return uint32_t(uint64_t(us) * DUTY_STEPS / PERIOD_US);
@@ -249,7 +266,7 @@ void printStatus() {
   } else if (receiving) {
     Serial.println("GPS: data but no fix yet (needs sky view)");
   }
-  Serial.printf("ESC: %.0f%% = %u us | keys g t 1-4 s p i b\n", double(TEST_PERCENT),
+  Serial.printf("ESC: %.0f%% = %u us | keys g t 1-4 s p i b (g/t/1-4 need double press)\n", double(TEST_PERCENT),
                 unsigned(TEST_US));
 }
 
@@ -297,24 +314,32 @@ void loop() {
 
   if (Serial.available()) {
     const char c = char(Serial.read());
-    if (c == 'g' || c == 'G') {
-      runAll();
-    } else if (c == 't' || c == 'T') {
-      sequence();
-    } else if (c >= '1' && c <= '4') {
-      runOne(size_t(c - '1'));
-    } else if (c == 's' || c == 'S') {
+    const char key = char(tolower(c));
+    if (key == 'g' || key == 't' || (key >= '1' && key <= '4')) {
+      if (!confirmed(key)) {
+        Serial.printf("'%c' needs a second press within %lu ms to start motors\n",
+                      key, (unsigned long)CONFIRM_MS);
+        return;
+      }
+      if (key == 'g') {
+        runAll();
+      } else if (key == 't') {
+        sequence();
+      } else {
+        runOne(size_t(key - '1'));
+      }
+    } else if (key == 's') {
       setAll(PULSE_MIN_US);
       Serial.println("STOP: all ESCs at 1000 us");
-    } else if (c == 'p' || c == 'P') {
+    } else if (key == 'p') {
       showStatus = !showStatus;
       Serial.println(showStatus ? "status ON" : "status OFF");
-    } else if (c == 'i' || c == 'I') {
+    } else if (key == 'i') {
       i2cScan();
       initImu();
       initBmp();
       Serial.println("re-detected devices");
-    } else if (c == 'b' || c == 'B') {
+    } else if (key == 'b') {
       baudIndex = (baudIndex + 1) % BAUD_COUNT;
       gpsUart.end();
       gpsUart.begin(GPS_BAUDS[baudIndex], SERIAL_8N1, GPS_RX, -1);

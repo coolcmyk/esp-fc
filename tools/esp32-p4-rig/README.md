@@ -59,8 +59,11 @@ immediately, and reconnects by itself when the board drops off USB.
 ./monitor.py -l run.log # also append to a file
 ```
 
-Keys (`sys_check` / `esc_test`): `g` all ESCs · `t` sequence 1-4 ·
-`1`-`4` single ESC · `s` stop · `p` pause status · `b` next GPS baud.
+Keys (`sys_check`): `g` all ESCs · `t` sequence 1-4 · `1`-`4` single ESC ·
+`i` I2C scan · `s` stop · `p` pause status · `b` next GPS baud.
+Motion commands (`g`, `t`, `1`-`4`) must be pressed **twice within 800 ms** —
+stray noise on the console UART once started all four motors from a single
+unrelated byte, so single-press motion is no longer accepted.
 `gps_gy91`: `r` raw NMEA · `b` next baud.
 
 ## ESC signal
