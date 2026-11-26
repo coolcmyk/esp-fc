@@ -7,6 +7,7 @@
 
 #include "driver/rmt_encoder.h"
 #include "driver/rmt_tx.h"
+#include "esp_log.h"
 #include "esp_timer.h"
 
 namespace Hal::Detail {
@@ -68,7 +69,14 @@ bool EscDriverImpl::attach(size_t channel, int pin, int pulse) {
 }
 
 void EscDriverImpl::write(size_t channel, int pulse) {
-  if (channel < EscDriver::CHANNEL_COUNT) _ch[channel].pulse = pulse;
+  if (channel >= EscDriver::CHANNEL_COUNT) return;
+  Channel& ch = _ch[channel];
+  if (ch.pulse != pulse) {
+    // Only on change: proves the value reached the RMT frame builder.
+    ESP_LOGI("EscP4", "ch%u pin %d pulse %d -> %d us", unsigned(channel),
+             int(ch.pin), ch.pulse, pulse);
+    ch.pulse = pulse;
+  }
 }
 
 void EscDriverImpl::apply() {

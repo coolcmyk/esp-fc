@@ -4,6 +4,8 @@
 #include "driver/i2c_master.h"
 #include "esp_log.h"
 
+#include "esp_err.h"
+
 namespace Hal {
 
 namespace {
@@ -31,6 +33,18 @@ int BusI2C::begin(int sda, int scl, uint32_t speed) {
     return 0;
   }
   (void)speed;
+  // The IDF i2c driver logs a multi-line error for every absent address while
+  // esp-fc scans the bus; keep it quiet and report the scan result instead.
+  esp_log_level_set("i2c.master", ESP_LOG_NONE);
+
+  char found[96] = {0};
+  for (uint8_t addr = 0x08; addr < 0x78; ++addr) {
+    if (i2c_master_probe(s_bus, addr, 20) == ESP_OK) {
+      size_t len = strlen(found);
+      snprintf(found + len, sizeof(found) - len, " 0x%02X", addr);
+    }
+  }
+  ESP_LOGI("HalI2C", "SDA=%d SCL=%d devices:%s", sda, scl, found[0] ? found : " none");
   return 1;
 }
 
@@ -44,7 +58,7 @@ i2c_master_dev_handle_t devFor(uint8_t addr) {
       i2c_device_config_t cfg = {};
       cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
       cfg.device_address = addr;
-      cfg.scl_speed_hz = 400000;
+      cfg.scl_speed_hz = 100000;
       if (i2c_master_bus_add_device(s_bus, &cfg, &s_dev[i]) != ESP_OK) return nullptr;
       s_devAddr[i] = addr;
       return s_dev[i];
