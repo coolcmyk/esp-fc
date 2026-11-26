@@ -138,6 +138,11 @@ sketch fails earlier with `esp_video_buffer: Failed to malloc for video buffer`,
 because a frame cannot fit in internal SRAM. So the prebuilt ESP-Video stack
 needs both, and this build satisfies neither.
 
+Tried and did **not** help: forcing the `ESPVideoClass`/`ESPVideoCaptureDevClass`
+objects into internal RAM with `DRAM_ATTR`. The offending context is allocated
+inside the ESP-Video CSI driver, not in the sketch, so it cannot be influenced
+from application code.
+
 The sensor itself is fine and identified. Options, in order of effort:
 
 1. Build `esp_video` from source with the CSI context allocated in internal RAM
