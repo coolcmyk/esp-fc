@@ -1,5 +1,4 @@
 #include "Connect/Cli.hpp"
-#include "Hal/Task.hpp"
 #include "Hal/Time.hpp"
 #include "Device/GyroDevice.hpp"
 #include "Hal/Board.hpp"
@@ -991,12 +990,12 @@ void handleWaypoint(CliCmd& cmd, Stream::Printer& s)
 
 namespace {
 
-// Sequential motor test driven from the CLI:
-//   mtest seq        -> 2 s on each output in turn, others idle
+// mtest: bench motor test from the CLI.
+//   mtest seq        -> 2 s on each output in turn
 //   mtest <ch> <us>  -> single channel at a given pulse
 //   mtest stop       -> everything back to idle
-// The task keeps re-stamping disarmedTime so the 5 s motor-test watchdog does
-// not cut the sweep short.
+// Runs inline in the CLI task (blocking, no task creation) and re-stamps
+// disarmedTime so the 5 s motor-test watchdog does not cut it short.
 void setMotorTest(Espfc::Model& model, int channel, int us)
 {
   for (size_t i = 0; i < OUTPUT_CHANNELS; ++i)
@@ -1010,25 +1009,7 @@ void setMotorTest(Espfc::Model& model, int channel, int us)
   model.state.output.disarmedTime = millis();
 }
 
-void motorTestSeqTask(void* arg)
-{
-  Espfc::Model& model = *static_cast<Espfc::Model*>(arg);
-  for (size_t ch = 0; ch < OUTPUT_CHANNELS; ++ch)
-  {
-    for (int step = 0; step < 20; ++step)  // 20 x 100 ms
-    {
-      setMotorTest(model, int(ch), 1250);
-      delay(100);
-    }
-    setMotorTest(model, -1, 0);
-    delay(200);
-  }
-  setMotorTest(model, -1, 0);
-  model.state.output.disarmedTime = 0;
-  Hal::Task::exitCurrent();
-}
-
-bool handleMotorTest(Espfc::Model& model, Espfc::CliCmd& cmd, Stream::Printer& s)
+void handleMotorTest(Espfc::Model& model, Espfc::CliCmd& cmd, Stream::Printer& s)
 {
   const char* sub = cmd.args[1];
   if (!sub || std::strcmp(sub, "stop") == 0)
@@ -1036,31 +1017,36 @@ bool handleMotorTest(Espfc::Model& model, Espfc::CliCmd& cmd, Stream::Printer& s
     setMotorTest(model, -1, 0);
     model.state.output.disarmedTime = 0;
     s.println("motor test stopped");
-    return true;
+    return;
   }
   if (std::strcmp(sub, "seq") == 0)
   {
-    s.println("motor test: sequential 2 s per output");
-    if (Hal::Task::create(motorTestSeqTask, "mtest", 4096, &model, Hal::Task::Priority::Low, 1))
+    s.println("motor test: 2 s per output");
+    for (size_t ch = 0; ch < OUTPUT_CHANNELS; ++ch)
     {
-      return true;
+      s.print("output "); s.println(int(ch));
+      for (int i = 0; i < 20; ++i)
+      {
+        setMotorTest(model, int(ch), 1250);
+        delay(100);
+      }
+      setMotorTest(model, -1, 0);
+      delay(150);
     }
-    s.println("# could not start motor test task");
-    return true;
+    setMotorTest(model, -1, 0);
+    model.state.output.disarmedTime = 0;
+    s.println("motor test done");
+    return;
   }
-  if (cmd.args[2] && cmd.args[3])
+  if (cmd.args[1] && cmd.args[2])
   {
-    const int ch = std::atoi(cmd.args[2]);
-    const int us = std::atoi(cmd.args[3]);
+    const int ch = std::atoi(cmd.args[1]);
+    const int us = std::atoi(cmd.args[2]);
     setMotorTest(model, ch, us);
-    s.print("motor ");
-    s.print(ch);
-    s.print(" = ");
-    s.println(us);
-    return true;
+    s.print("motor "); s.print(ch); s.print(" = "); s.println(us);
+    return;
   }
   s.println("# usage: mtest seq | mtest <ch> <us> | mtest stop");
-  return true;
 }
 
 } // namespace
