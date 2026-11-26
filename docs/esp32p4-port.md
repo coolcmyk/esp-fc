@@ -212,3 +212,19 @@ Adding WiFi + camera outgrew the default partition table and flash setting:
 - `partitions.csv` with a 4 MB `factory` app
 - `CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y`
 - `CONFIG_PARTITION_TABLE_CUSTOM=y`
+
+### Resolution: no XCLK from the P4
+
+Removing the P4-generated XCLK fixes the sharing: GPIO15 belongs to the C6 SDIO
+link, and the OV5647 free-runs from the board. Measured with both active:
+
+```
+I wifi_bridge: ip 10.163.184.113, MSP over TCP on port 5760
+I video: camera ready (800x800 RGB565)
+I video: recording to /sdcard/both2.mjpeg
+I video: stopped: 16 frames, 1215255 bytes
+```
+
+So WiFi, the TCP transport and SD recording coexist in one image. The earlier
+"camera needs GPIO15" conclusion came from a standalone camera project with no
+C6 running; with SDIO alive the camera streams without any P4 clock.

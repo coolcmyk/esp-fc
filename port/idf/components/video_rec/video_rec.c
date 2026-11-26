@@ -102,11 +102,9 @@ static esp_err_t cam_init(void) {
   esp_ldo_channel_config_t ldo_cfg = {.chan_id = CAM_LDO_CHAN, .voltage_mv = CAM_LDO_MV};
   ESP_RETURN_ON_ERROR(esp_ldo_acquire_channel(&ldo_cfg, &s_cam_ldo), TAG, "cam ldo");
 
-  esp_cam_sensor_xclk_handle_t xclk;
-  ESP_RETURN_ON_ERROR(esp_cam_sensor_xclk_allocate(ESP_CAM_SENSOR_XCLK_ESP_CLOCK_ROUTER, &xclk), TAG, "xclk");
-  esp_cam_sensor_xclk_config_t xcfg = {.esp_clock_router_cfg = {.xclk_pin = CAM_XCLK_PIN, .xclk_freq_hz = CAM_XCLK_FREQ}};
-  ESP_RETURN_ON_ERROR(esp_cam_sensor_xclk_start(xclk, &xcfg), TAG, "xclk start");
-  vTaskDelay(pdMS_TO_TICKS(20));
+  // No P4-driven XCLK: GPIO15 belongs to the C6 SDIO link. Test whether the
+  // module free-runs with the CSI configuration alone.
+  ESP_LOGW(TAG, "XCLK not driven (GPIO15 kept for C6 SDIO)");
 
   static esp_video_init_csi_config_t csi = {
       .sccb_config = {.init_sccb = true,
