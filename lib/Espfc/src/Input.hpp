@@ -2,6 +2,7 @@
 
 #include "Device/Input/InputCRSF.hpp"
 #include "Device/Input/InputIBUS.hpp"
+#include "Device/Input/InputMsp.hpp"
 #include "Device/Input/InputPPM.hpp"
 #include "Device/Input/InputSBUS.hpp"
 #include "Device/InputDevice.hpp"
@@ -59,6 +60,7 @@ private:
   Device::InputDevice* _device;
   Utils::Filter _filter[INPUT_CHANNELS];
   Device::Input::InputPPM _ppm;
+  Device::Input::InputMsp _msp;
   Device::Input::InputIBUS _ibus;
   Device::Input::InputSBUS _sbus;
   Device::Input::InputCRSF _crsf;

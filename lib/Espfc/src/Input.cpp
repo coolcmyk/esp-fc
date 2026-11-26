@@ -389,7 +389,15 @@ Device::InputDevice* Input::getInputDevice()
   }
 #endif
 
+#if defined(ESP32P4)
+  // No receiver is wired on this board: accept host-injected sticks so the
+  // App's joystick can drive it. Only used when nothing else matched.
+  _msp.begin();
+  _model.logger.info().logln("RX MSP (host)");
+  return &_msp;
+#else
   return nullptr;
+#endif
 }
 
 } // namespace Espfc

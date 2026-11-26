@@ -1,4 +1,6 @@
 #include "Connect/MspProcessor.hpp"
+
+#include "Device/Input/InputMsp.hpp"
 #include "Connect/Vtx.hpp"
 #include "Hal/Board.hpp"
 #include "Hardware.hpp"
@@ -138,6 +140,19 @@ void MspProcessor::processCommand(MspMessage& m, MspResponse& r, Stream::ReadWri
       r.writeU8(API_VERSION_MAJOR);
       r.writeU8(API_VERSION_MINOR);
       break;
+
+    case MSP_SET_RAW_RC:
+    {
+      // Host-injected sticks (App joystick). Channels are u16, 1000..2000.
+      uint16_t channels[Espfc::Device::Input::InputMsp::CHANNELS] = {0};
+      size_t count = 0;
+      while (m.remain() >= 2 && count < Espfc::Device::Input::InputMsp::CHANNELS)
+      {
+        channels[count++] = m.readU16();
+      }
+      Espfc::Device::Input::InputMsp::setChannels(channels, count);
+      break;
+    }
 
     case MSP_FC_VARIANT:
       r.writeData(flightControllerIdentifier, FLIGHT_CONTROLLER_IDENTIFIER_LENGTH);
