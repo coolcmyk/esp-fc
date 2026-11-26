@@ -21,6 +21,7 @@
 #include "esp_video_init.h"
 #include "esp_vfs_fat.h"
 #include "linux/videodev2.h"
+#include "sd_pwr_ctrl_by_on_chip_ldo.h"
 #include "sdmmc_cmd.h"
 
 static const char *TAG = "orion_cam";
@@ -88,6 +89,18 @@ static esp_err_t sd_mount(void) {
 
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
   host.slot = SDMMC_HOST_SLOT_0;
+
+  // The slot's IO rail comes from on-chip LDO channel 4 (LDO_VO4) on this
+  // board; the GPIO is only the load switch. Without the LDO the card never
+  // answers and init times out with 0x107.
+  static sd_pwr_ctrl_handle_t sd_pwr = NULL;
+  sd_pwr_ctrl_ldo_config_t pwr_cfg = {.ldo_chan_id = 4};
+  esp_err_t perr = sd_pwr_ctrl_new_on_chip_ldo(&pwr_cfg, &sd_pwr);
+  if (perr != ESP_OK) {
+    ESP_LOGW(TAG, "sd ldo power ctrl failed: %s", esp_err_to_name(perr));
+  } else {
+    host.pwr_ctrl_handle = sd_pwr;
+  }
   host.flags = SDMMC_HOST_FLAG_1BIT;
   host.max_freq_khz = SDMMC_FREQ_DEFAULT;
 
@@ -146,7 +159,12 @@ void app_main(void) {
                             .src_type = JPEG_ENC_SRC_RGB565,
                             .sub_sample = JPEG_DOWN_SAMPLING_YUV420,
                             .image_quality = 70};
-  uint8_t *jpeg = heap_caps_malloc(JPEG_MAX, MALLOC_CAP_SPIRAM);
+  // The hardware encoder requires an aligned output buffer.
+  jpeg_encode_memory_alloc_cfg_t mem_cfg = {
+      .buffer_direction = JPEG_ENC_ALLOC_OUTPUT_BUFFER,
+  };
+  size_t jpeg_size = 0;
+  uint8_t *jpeg = (uint8_t *)jpeg_alloc_encoder_mem(JPEG_MAX, &mem_cfg, &jpeg_size);
   if (!jpeg) {
     ESP_LOGE(TAG, "no PSRAM for jpeg buffer");
     return;
@@ -165,7 +183,7 @@ void app_main(void) {
     struct v4l2_buffer b = {.type = V4L2_BUF_TYPE_VIDEO_CAPTURE, .memory = V4L2_MEMORY_MMAP};
     if (ioctl(cam_fd, VIDIOC_DQBUF, &b) != 0) break;
     uint32_t jsize = 0;
-    if (jpeg_encoder_process(jenc, &jcfg, (const uint8_t *)bufs[b.index], (uint32_t)lens[b.index], jpeg, JPEG_MAX, &jsize) == ESP_OK) {
+    if (jpeg_encoder_process(jenc, &jcfg, (const uint8_t *)bufs[b.index], (uint32_t)lens[b.index], jpeg, (uint32_t)jpeg_size, &jsize) == ESP_OK) {
       fwrite(jpeg, 1, jsize, f);
       total += jsize;
       ++written;
@@ -173,6 +191,25 @@ void app_main(void) {
     ioctl(cam_fd, VIDIOC_QBUF, &b);
   }
   fclose(f);
+
+  // Read the file back and count JPEG start markers: proves the clip is a real
+  // motion-JPEG rather than a byte dump.
+  {
+    FILE *r = fopen("/sdcard/orion_clip.mjpeg", "rb");
+    if (r) {
+      int soi = 0, prev = -1, c;
+      long bytes = 0;
+      while ((c = fgetc(r)) != EOF) {
+        ++bytes;
+        if (prev == 0xFF && c == 0xD8) ++soi;
+        prev = c;
+      }
+      fclose(r);
+      ESP_LOGI(TAG, "verify: %ld bytes, %d JPEG SOI markers", bytes, soi);
+    } else {
+      ESP_LOGE(TAG, "verify: cannot reopen clip");
+    }
+  }
 
   const uint32_t ms = (xTaskGetTickCount() - start) * portTICK_PERIOD_MS;
   ESP_LOGI(TAG, "recorded %d frames, %u bytes, %lu ms (%.1f fps)", written, (unsigned)total,
