@@ -81,3 +81,39 @@ Do not skip straight to a flight test. The bench rig exists for this:
 3. Only then enable the DShot path in esp-fc and compare against the PWM
    baseline from step 2.
 4. Props off for every one of these steps.
+
+## Port progress (IDF 5.5, esp32p4)
+
+The two blocking peripherals are implemented with the new APIs and **verified
+running on the Waveshare ESP32-P4-NANO**:
+
+| Blocker | Replacement | Status |
+| --- | --- | --- |
+| `EscDriverEsp32.cpp` (legacy `rmt_ll.h`, `RMTMEM`, `soc/rmt_periph.h`) | `port/idf/main/esc_pwm_rmt.c` — `driver/rmt_tx` + copy encoder, 4 channels, 1 MHz resolution | builds, runs: GPIO6/20/21/22 at 1000 us / 2500 us |
+| `HwTimer.cpp` (legacy `driver/timer.h` timer_group) | `port/idf/main/loop_timer.c` — `driver/gptimer` alarm → task notify | builds, runs: 9996 ticks in 10.0 s (≈1000 Hz) |
+
+Confirmed missing on P4 in IDF 5.5: `hal/rmt_ll.h`, `soc/rmt_periph.h`,
+`driver/timer.h`. Present and used instead: `driver/rmt_tx.h`,
+`driver/rmt_encoder.h`, `driver/gptimer.h`. P4 RMT capabilities:
+8 channels, 4 TX candidates, 48 words/channel, TX sync + loop auto-stop.
+
+Build/flash:
+
+```bash
+. $IDF_PATH/export.sh
+cd port/idf
+idf.py set-target esp32p4
+idf.py build
+idf.py -p /dev/ttyACM0 flash
+```
+
+### Remaining before esp-fc itself runs
+
+1. Port the Arduino-dependent HAL files (`BusI2C`, `BusSPI`, `Gpio`, `Serial`,
+   `Adc`) to IDF drivers — 5 files, `Arduino.h` currently included in 19 files
+   repo-wide but only the ESP32 HAL ones matter.
+2. Board definition for the P4-NANO (I2C 7/8, GPS UART 5, ESC 6/20/21/22,
+   console UART0).
+3. Wire `EscDriverEsp32` and `HwTimer` to these replacements behind a target
+   switch (`ESP32P4`), keeping the existing ESP32/S3 paths untouched.
+4. Then the esp-fc core (`lib/Espfc`, AHRS, Gps) builds as a component.
