@@ -1,7 +1,9 @@
 #include "Hal/EscDriver.hpp"
 #include "Hal/FastCode.hpp"
 
-#if defined(ESP32C3)
+#if defined(ESP32P4)
+#include "EscDriverP4.hpp"
+#elif defined(ESP32C3)
 #include "ESP32/EscDriverEsp32c3.hpp"
 #elif defined(ESP32)
 #include "ESP32/EscDriverEsp32.hpp"
