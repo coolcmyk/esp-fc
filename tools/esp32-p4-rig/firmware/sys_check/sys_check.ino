@@ -149,6 +149,20 @@ int16_t readBigEndian(const uint8_t *data) {
   return static_cast<int16_t>((uint16_t(data[0]) << 8) | data[1]);
 }
 
+void i2cScan() {
+  Serial.printf("I2C scan (SDA=%d SCL=%d):", I2C_SDA, I2C_SCL);
+  int found = 0;
+  for (uint8_t address = 0x08; address < 0x78; ++address) {
+    Wire.beginTransmission(address);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf(" 0x%02X", unsigned(address));
+      ++found;
+    }
+  }
+  if (!found) Serial.print(" nothing (check SDA/SCL/GND/power)");
+  Serial.println();
+}
+
 void initImu() {
   const uint8_t addresses[] = {0x68, 0x69};
   for (uint8_t address : addresses) {
@@ -235,7 +249,7 @@ void printStatus() {
   } else if (receiving) {
     Serial.println("GPS: data but no fix yet (needs sky view)");
   }
-  Serial.printf("ESC: %.0f%% = %u us | keys g t 1-4 s p b\n", double(TEST_PERCENT),
+  Serial.printf("ESC: %.0f%% = %u us | keys g t 1-4 s p i b\n", double(TEST_PERCENT),
                 unsigned(TEST_US));
 }
 
@@ -252,6 +266,7 @@ void setup() {
   Wire.setTimeOut(50);
   initImu();
   initBmp();
+  i2cScan();
 
   gpsUart.setRxBufferSize(4096);
   gpsUart.begin(GPS_BAUDS[baudIndex], SERIAL_8N1, GPS_RX, -1);
@@ -294,6 +309,11 @@ void loop() {
     } else if (c == 'p' || c == 'P') {
       showStatus = !showStatus;
       Serial.println(showStatus ? "status ON" : "status OFF");
+    } else if (c == 'i' || c == 'I') {
+      i2cScan();
+      initImu();
+      initBmp();
+      Serial.println("re-detected devices");
     } else if (c == 'b' || c == 'B') {
       baudIndex = (baudIndex + 1) % BAUD_COUNT;
       gpsUart.end();
