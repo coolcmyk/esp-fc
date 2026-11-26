@@ -115,5 +115,9 @@ void wifi_bridge_start(void) {
   ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &cfg));
   ESP_ERROR_CHECK(esp_wifi_start());
 
-  xTaskCreate(tcp_task, "msp_tcp", 4096, NULL, 5, NULL);
+  // Modem sleep adds 100-500 ms of latency to TCP round trips, which is
+  // unusable for stick input. Keep the radio awake.
+  ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
+
+  xTaskCreatePinnedToCore(tcp_task, "msp_tcp", 4096, NULL, 12, NULL, 0);
 }

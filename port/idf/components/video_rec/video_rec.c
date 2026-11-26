@@ -208,7 +208,9 @@ esp_err_t video_rec_start(const char *name) {
     s_active = false;
     return ESP_ERR_NO_MEM;
   }
-  if (xTaskCreate(record_task, "video_rec", 8192, arg, 4, &s_task) != pdPASS) {
+  // Pin to core 1 so SD writes and JPEG encoding do not compete with the
+  // control loop and the network stack on core 0.
+  if (xTaskCreatePinnedToCore(record_task, "video_rec", 8192, arg, 3, &s_task, 1) != pdPASS) {
     free(arg);
     s_active = false;
     return ESP_ERR_NO_MEM;
