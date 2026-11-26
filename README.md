@@ -2,6 +2,12 @@
 
 The mini, DIY, Low cost, ESP32 based, high performance flight controller for hobbyists.
 
+> **Fork note:** this branch (`feat/integration`) adds an **ESP32-P4 bring-up rig**
+> in [`tools/esp32-p4-rig`](tools/esp32-p4-rig): GPS, GY-91, 4x ESC test, camera
+> and SD card probes, plus an interactive `monitor.py`. The P4 is **not** a build
+> target yet — see [`docs/esp32p4-port.md`](docs/esp32p4-port.md) for what is
+> missing (PlatformIO board env, legacy RMT ESC driver, timer API).
+
 # Features
 
 * Espressif targets (ESP32, ESP32-S3)
