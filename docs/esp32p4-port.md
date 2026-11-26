@@ -174,3 +174,41 @@ PASS  video stop + list clips  [... e2e_clip.mjpeg 1375248]
 That run also caught a real bug: a second recording produced 0 frames, because
 `STREAMOFF` releases the V4L2 buffers and they were never re-queued. `video_rec_stop`
 now re-queues them, and the test passes on repeat runs.
+
+## WiFi (ESP32-C6 over SDIO) — and a pin conflict with the camera
+
+`components/wifi_bridge` joins the AP through the on-board C6 (esp-hosted /
+esp_wifi_remote) and opens a TCP listener for the App's TCP transport:
+
+```
+I eh_sdio: transport[host]: SDIO 4-bit 40000 kHz CLK=18 CMD=19 D0=14 D1=15 D2=16 D3=17 RESET=54
+I eh_init_evt: slave chip id: 0x0d (esp32c6)
+I wifi_bridge: ip 10.163.184.113, MSP over TCP on port 5760
+```
+
+The App's Android build already has `BetaflightTcpPlugin`, so this is the
+transport for a cable-free connection.
+
+### GPIO15 is shared
+
+The SDIO log shows **D1 = GPIO15**, and the camera is driven with its XCLK on
+**GPIO15** as well (`video_rec.c`, `CAM_XCLK_PIN`). Measured on hardware:
+
+| Test | Result |
+| --- | --- |
+| camera with XCLK on GPIO15, WiFi off | captures frames |
+| camera with **no** XCLK at all | sensor detected (PID 0x5647) but **never streams** |
+| WiFi up, then start recording | task watchdog fires (`MCAUSE 0xdeadc0de`) |
+
+So the camera genuinely needs that pin, and the C6 SDIO link occupies it. WiFi
+and video recording cannot run in the same firmware image until the board's
+camera XCLK pin is confirmed from the schematic (the Olimex reference uses
+GPIO40; this port uses 15). Until then: pick one at build time.
+
+### Build notes
+
+Adding WiFi + camera outgrew the default partition table and flash setting:
+
+- `partitions.csv` with a 4 MB `factory` app
+- `CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y`
+- `CONFIG_PARTITION_TABLE_CUSTOM=y`
