@@ -63,6 +63,32 @@ int FAST_CODE_ATTR Espfc::update(bool externalTrigger)
   }
   Utils::Stats::Measure measure(_model.state.stats, COUNTER_CPU_0);
 
+  // Sequential motor test (CLI "mtest seq"): advance one output every 2 s.
+  if (_model.state.output.seqActive)
+  {
+    const uint32_t now = millis();
+    if (now >= _model.state.output.seqNext)
+    {
+      const uint8_t ch = _model.state.output.seqChannel;
+      for (size_t i = 0; i < OUTPUT_CHANNELS; ++i)
+      {
+        _model.state.output.disarmed[i] = _model.config.output.minCommand;
+      }
+      if (ch < OUTPUT_CHANNELS)
+      {
+        _model.state.output.disarmed[ch] = 1250;
+        _model.state.output.disarmedTime = now;  // keep the 5 s watchdog quiet
+        _model.state.output.seqChannel = ch + 1;
+        _model.state.output.seqNext = now + 2000;
+      }
+      else
+      {
+        _model.state.output.seqActive = 0;
+        _model.state.output.disarmedTime = 0;
+      }
+    }
+  }
+
   // Motor-test safety: MSP_SET_MOTOR is sticky, so stop it 5 s after the last
   // command. Without this a forgotten host leaves the ESCs spinning.
   if (_model.state.output.disarmedTime && (millis() - _model.state.output.disarmedTime) > MOTOR_TEST_TIMEOUT_MS)

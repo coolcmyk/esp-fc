@@ -164,6 +164,10 @@ struct OutputState
   // ms of the last MSP_SET_MOTOR (0 = no motor test running). The App's motor
   // test is sticky, so it is stopped when the host stops refreshing it.
   uint32_t disarmedTime;
+  // Non-blocking sequential motor test driven from the control loop.
+  uint8_t seqActive;
+  uint8_t seqChannel;
+  uint32_t seqNext;
   bool saturated;
   OutputTelemetryState telemetry;
 };

@@ -1021,21 +1021,13 @@ void handleMotorTest(Espfc::Model& model, Espfc::CliCmd& cmd, Stream::Printer& s
   }
   if (std::strcmp(sub, "seq") == 0)
   {
-    s.println("motor test: 2 s per output");
-    for (size_t ch = 0; ch < OUTPUT_CHANNELS; ++ch)
-    {
-      s.print("output "); s.println(int(ch));
-      for (int i = 0; i < 20; ++i)
-      {
-        setMotorTest(model, int(ch), 1250);
-        delay(100);
-      }
-      setMotorTest(model, -1, 0);
-      delay(150);
-    }
+    // Armed from the control loop, not here: blocking the CLI task starves the
+    // mixer, so the outputs never actually changed.
     setMotorTest(model, -1, 0);
-    model.state.output.disarmedTime = 0;
-    s.println("motor test done");
+    model.state.output.seqChannel = 0;
+    model.state.output.seqNext = millis();
+    model.state.output.seqActive = 1;
+    s.println("motor test: 2 s per output (from the control loop)");
     return;
   }
   if (cmd.args[1] && cmd.args[2])
