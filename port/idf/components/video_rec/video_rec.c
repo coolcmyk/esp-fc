@@ -224,6 +224,15 @@ esp_err_t video_rec_stop(void) {
   vTaskDelay(pdMS_TO_TICKS(300));
   enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   ioctl(s_cam_fd, VIDIOC_STREAMOFF, &type);
+
+  // STREAMOFF returns ownership of every buffer; re-queue them so the next
+  // start() has frames to dequeue (without this a restart records 0 frames).
+  for (int i = 0; i < CAPTURE_BUFFERS; ++i) {
+    struct v4l2_buffer b = {.type = V4L2_BUF_TYPE_VIDEO_CAPTURE,
+                            .memory = V4L2_MEMORY_MMAP,
+                            .index = (uint32_t)i};
+    ioctl(s_cam_fd, VIDIOC_QBUF, &b);
+  }
   return ESP_OK;
 }
 

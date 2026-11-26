@@ -147,3 +147,30 @@ The motor path is the full stack: MSP → `Espfc` → `Actuator` →
 - **FFT is a stub** in `Hal::Dsp`: the dynamic notch filter is inert.
 - ESCs were not powered during the motor test; the pulses were verified at the
   pin.
+
+## End-to-end test against the App protocol
+
+`tools/e2e_app_test.py` exercises every App-facing feature with the exact
+framings the Betaflight App uses (MSP v1 `$M<`, MSP v2 `$X<` with CRC-8 DVB-S2
+poly 0xD5, CLI sessions with STX/ETX):
+
+```
+PASS  handshake MSP_API_VERSION  [protocol=0 api=1.48]
+PASS  handshake MSP_FC_VARIANT  [BTFL]
+PASS  handshake MSP_BOARD_INFO  [4553504600000000]
+PASS  sensors MSP_RAW_IMU  [|a|=1.00 g]
+PASS  motors MSP_SET_MOTOR 1200  [(1200, 1200, 1200, 1200)]
+PASS  motors stop
+PASS  joystick MSP_SET_RAW_RC  [roll=1697]
+PASS  waypoints insert + list  [2 waypoints]
+PASS  waypoints clear
+PASS  video start  [01]
+PASS  video status while recording  [frames=17]
+PASS  video stop + list clips  [... e2e_clip.mjpeg 1375248]
+
+12/12 checks passed
+```
+
+That run also caught a real bug: a second recording produced 0 frames, because
+`STREAMOFF` releases the V4L2 buffers and they were never re-queued. `video_rec_stop`
+now re-queues them, and the test passes on repeat runs.
