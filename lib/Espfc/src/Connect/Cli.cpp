@@ -1,4 +1,6 @@
 #include "Connect/Cli.hpp"
+#include "Hal/Task.hpp"
+#include "Hal/Time.hpp"
 #include "Device/GyroDevice.hpp"
 #include "Hal/Board.hpp"
 #include "Hal/Wifi.hpp"
@@ -986,6 +988,83 @@ void handleWaypoint(CliCmd& cmd, Stream::Printer& s)
 
 } // namespace
 
+
+namespace {
+
+// Sequential motor test driven from the CLI:
+//   mtest seq        -> 2 s on each output in turn, others idle
+//   mtest <ch> <us>  -> single channel at a given pulse
+//   mtest stop       -> everything back to idle
+// The task keeps re-stamping disarmedTime so the 5 s motor-test watchdog does
+// not cut the sweep short.
+void setMotorTest(Espfc::Model& model, int channel, int us)
+{
+  for (size_t i = 0; i < OUTPUT_CHANNELS; ++i)
+  {
+    model.state.output.disarmed[i] = model.config.output.minCommand;
+  }
+  if (channel >= 0 && channel < int(OUTPUT_CHANNELS))
+  {
+    model.state.output.disarmed[channel] = int16_t(us);
+  }
+  model.state.output.disarmedTime = millis();
+}
+
+void motorTestSeqTask(void* arg)
+{
+  Espfc::Model& model = *static_cast<Espfc::Model*>(arg);
+  for (size_t ch = 0; ch < OUTPUT_CHANNELS; ++ch)
+  {
+    for (int step = 0; step < 20; ++step)  // 20 x 100 ms
+    {
+      setMotorTest(model, int(ch), 1250);
+      delay(100);
+    }
+    setMotorTest(model, -1, 0);
+    delay(200);
+  }
+  setMotorTest(model, -1, 0);
+  model.state.output.disarmedTime = 0;
+  Hal::Task::exitCurrent();
+}
+
+bool handleMotorTest(Espfc::Model& model, Espfc::CliCmd& cmd, Stream::Printer& s)
+{
+  const char* sub = cmd.args[1];
+  if (!sub || std::strcmp(sub, "stop") == 0)
+  {
+    setMotorTest(model, -1, 0);
+    model.state.output.disarmedTime = 0;
+    s.println("motor test stopped");
+    return true;
+  }
+  if (std::strcmp(sub, "seq") == 0)
+  {
+    s.println("motor test: sequential 2 s per output");
+    if (Hal::Task::create(motorTestSeqTask, "mtest", 4096, &model, Hal::Task::Priority::Low, 1))
+    {
+      return true;
+    }
+    s.println("# could not start motor test task");
+    return true;
+  }
+  if (cmd.args[2] && cmd.args[3])
+  {
+    const int ch = std::atoi(cmd.args[2]);
+    const int us = std::atoi(cmd.args[3]);
+    setMotorTest(model, ch, us);
+    s.print("motor ");
+    s.print(ch);
+    s.print(" = ");
+    s.println(us);
+    return true;
+  }
+  s.println("# usage: mtest seq | mtest <ch> <us> | mtest stop");
+  return true;
+}
+
+} // namespace
+
 bool Cli::process(const char c, CliCmd& cmd, Stream::Printer& stream)
 {
   // configurator handshake
@@ -1096,7 +1175,7 @@ void Cli::execute(CliCmd& cmd, Stream::Printer& s)
     static const char* const helps[] = {"available commands:", " help", " dump", " get param", " set param value ...",
                                         " cal [gyro]", " defaults", " save", " reboot", " scaler", " mixer", " stats",
                                         " status", " devinfo", " version", " logs", " gps [set_home|clear_home]",
-                                        " waypoint [list|clear|insert ...]",
+                                        " waypoint [list|clear|insert ...]", " mtest [seq|<ch> <us>|stop]",
                                         //" load", " eeprom",
                                         //" fsinfo", " fsformat", " log",
                                         nullptr};
@@ -1424,6 +1503,10 @@ void Cli::execute(CliCmd& cmd, Stream::Printer& s)
   {
     _model.load();
     s.println("OK");
+  }
+  else if (std::strcmp(cmd.args[0], "mtest") == 0)
+  {
+    handleMotorTest(_model, cmd, s);
   }
   else if (std::strcmp(cmd.args[0], "waypoint") == 0)
   {
