@@ -117,3 +117,33 @@ idf.py -p /dev/ttyACM0 flash
 3. Wire `EscDriverEsp32` and `HwTimer` to these replacements behind a target
    switch (`ESP32P4`), keeping the existing ESP32/S3 paths untouched.
 4. Then the esp-fc core (`lib/Espfc`, AHRS, Gps) builds as a component.
+
+## Verified: the Betaflight App can drive this board
+
+Flashed `port/idf` on the Waveshare ESP32-P4-NANO and exercised the same MSP
+traffic the [Betaflight App](https://betaflight.com/docs/wiki/app) uses:
+
+| App function | Command | Result on hardware |
+| --- | --- | --- |
+| Identify | `MSP_API_VERSION` | `24 4d 3e 03 01 00 01 30` → protocol 0, **API 1.48** |
+| | `MSP_FC_VARIANT` | `BTFL` |
+| | `MSP_FC_VERSION` | `26 06 00` + `"2026.6.0"` |
+| | `MSP_BOARD_INFO` | `ESPF` + `"ESP32P4"` |
+| Sensors tab | `MSP_RAW_IMU` | `acc=(0,0,2048)` = 1 g on Z, gyro 0 at rest |
+| Motors tab | `MSP_SET_MOTOR` | `ch0..3 pulse 1000 -> 1200 us` on GPIO 6/20/21/22, back to 1000 on stop |
+| Setup tab | `MSP_STATUS` | flags `0x271e` |
+
+The motor path is the full stack: MSP → `Espfc` → `Actuator` →
+`Hal::EscDriver` → RMT TX → GPIO.
+
+### Known gaps on this target
+
+- **No `MSP_CLI`** (cmd 217) in esp-fc: the App's CLI tab answers `$M!`.
+  Configuration is done through the settings tabs, not the CLI.
+- **No RC input configured**: `FEATURE_MASK` is `FEATURE_GPS` only, so the board
+  cannot arm or fly without a receiver added to `FEATURE_RX_SERIAL` on a free
+  UART.
+- **DShot not implemented** on the P4 ESC driver (PWM 400 Hz only).
+- **FFT is a stub** in `Hal::Dsp`: the dynamic notch filter is inert.
+- ESCs were not powered during the motor test; the pulses were verified at the
+  pin.
