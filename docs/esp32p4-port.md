@@ -81,3 +81,40 @@ Do not skip straight to a flight test. The bench rig exists for this:
 3. Only then enable the DShot path in esp-fc and compare against the PWM
    baseline from step 2.
 4. Props off for every one of these steps.
+
+## Bench status (measured on the P4-NANO, 2026-11)
+
+| Subsystem | Result |
+| --- | --- |
+| Console / upload | works, with `ChipVariant=prev3` + `CDCOnBoot=disabled` |
+| MPU6500 (GY-91) | works, `WHO_AM_I 0x70` at I2C 0x68 |
+| BMP280 (GY-91) | works, I2C 0x76 |
+| GPS (M10) | clean NMEA at 115200 |
+| ESC PWM x4 | works, startup threshold ~1200-1300 us |
+| microSD | works, SDMMC slot 0, 4-bit |
+| MIPI-CSI camera | **blocked**: OV5647 detected (PID 0x5647 at 0x36) but CSI start fails |
+
+The camera failure is the only hardware blocker and it is a library problem, not
+a board problem:
+
+```
+E dw-gdma: dw_gdma_channel_register_event_callbacks: user context not in internal RAM
+E CSI: failed to register dwgdma callback
+```
+
+- with PSRAM enabled: the GDMA callback context is not in internal RAM
+- without PSRAM: `esp_video_buffer: Failed to malloc for video buffer`
+
+A frame needs PSRAM; the callback context needs internal RAM; the prebuilt
+Arduino ESP-Video stack cannot satisfy both. Fixing it means building esp_video
+from source with an internal-RAM allocation for the CSI context, or moving the
+camera path to ESP-IDF.
+
+## Suggested port order
+
+1. Add a `esp32p4` PlatformIO env and confirm a minimal esp-fc sketch links.
+2. Replace the legacy RMT ESC driver with a `driver/rmt_tx` implementation,
+   validating against the PWM baseline measured by `tools/esp32-p4-rig`.
+3. Port `HwTimer` to the P4 timer groups and measure the achievable loop rate.
+4. Keep the camera out of the flight firmware entirely: it belongs on a
+   companion path (or an ESP-IDF co-processor), not in the control loop.
