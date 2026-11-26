@@ -7,6 +7,8 @@
 #include "msp/msp_protocol.h"
 #include <algorithm>
 #include <charconv>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iterator>
 #include <memory>
@@ -869,6 +871,121 @@ const Cli::Param* Cli::initialize(ModelConfig& c)
   return params;
 }
 
+
+namespace {
+
+// Waypoint table used by the App's Flight Plan tab (CLI, not MSP).
+// Command format, parsed back by the App:
+//   waypoint insert <idx> <lat> <lon> <altCm> <speedRaw> <TYPE> <durDs> <PATTERN>
+constexpr size_t WAYPOINT_MAX = 32;
+
+struct WaypointEntry
+{
+  bool used;
+  int index;
+  double lat;
+  double lon;
+  long altCm;
+  long speedRaw;
+  long durationDs;
+  char type[16];
+  char pattern[16];
+};
+
+WaypointEntry g_waypoints[WAYPOINT_MAX];
+
+void copyToken(char* dst, size_t size, const char* src)
+{
+  if (!src) src = "";
+  std::strncpy(dst, src, size - 1);
+  dst[size - 1] = '\0';
+}
+
+void printWaypoint(const WaypointEntry& w, Stream::Printer& s)
+{
+  char line[128];
+  std::snprintf(line, sizeof(line), "waypoint insert %d %.7f %.7f %ld %ld %s %ld %s",
+                w.index, w.lat, w.lon, w.altCm, w.speedRaw, w.type, w.durationDs, w.pattern);
+  s.println(line);
+}
+
+void handleWaypoint(CliCmd& cmd, Stream::Printer& s)
+{
+  const char* sub = cmd.args[1];
+  if (!sub || std::strcmp(sub, "list") == 0)
+  {
+    size_t printed = 0;
+    for (size_t i = 0; i < WAYPOINT_MAX; ++i)
+    {
+      if (g_waypoints[i].used)
+      {
+        printWaypoint(g_waypoints[i], s);
+        ++printed;
+      }
+    }
+    if (!printed) s.println("# no waypoints");
+    return;
+  }
+
+  if (std::strcmp(sub, "clear") == 0)
+  {
+    for (size_t i = 0; i < WAYPOINT_MAX; ++i) g_waypoints[i].used = false;
+    s.println("waypoint cleared");
+    return;
+  }
+
+  if (std::strcmp(sub, "insert") == 0)
+  {
+    if (!cmd.args[9])
+    {
+      s.println("# usage: waypoint insert <idx> <lat> <lon> <altCm> <speed> <TYPE> <durDs> <PATTERN>");
+      return;
+    }
+    const int index = std::atoi(cmd.args[2]);
+    WaypointEntry* slot = nullptr;
+    for (size_t i = 0; i < WAYPOINT_MAX; ++i)
+    {
+      if (g_waypoints[i].used && g_waypoints[i].index == index)
+      {
+        slot = &g_waypoints[i];
+        break;
+      }
+    }
+    if (!slot)
+    {
+      for (size_t i = 0; i < WAYPOINT_MAX; ++i)
+      {
+        if (!g_waypoints[i].used)
+        {
+          slot = &g_waypoints[i];
+          break;
+        }
+      }
+    }
+    if (!slot)
+    {
+      s.println("# waypoint table full");
+      return;
+    }
+
+    slot->used = true;
+    slot->index = index;
+    slot->lat = std::atof(cmd.args[3]);
+    slot->lon = std::atof(cmd.args[4]);
+    slot->altCm = std::atol(cmd.args[5]);
+    slot->speedRaw = std::atol(cmd.args[6]);
+    slot->durationDs = std::atol(cmd.args[8]);
+    copyToken(slot->type, sizeof(slot->type), cmd.args[7]);
+    copyToken(slot->pattern, sizeof(slot->pattern), cmd.args[9]);
+    printWaypoint(*slot, s);
+    return;
+  }
+
+  s.println("# usage: waypoint list | clear | insert <idx> <lat> <lon> <altCm> <speed> <TYPE> <durDs> <PATTERN>");
+}
+
+} // namespace
+
 bool Cli::process(const char c, CliCmd& cmd, Stream::Printer& stream)
 {
   // configurator handshake
@@ -979,6 +1096,7 @@ void Cli::execute(CliCmd& cmd, Stream::Printer& s)
     static const char* const helps[] = {"available commands:", " help", " dump", " get param", " set param value ...",
                                         " cal [gyro]", " defaults", " save", " reboot", " scaler", " mixer", " stats",
                                         " status", " devinfo", " version", " logs", " gps [set_home|clear_home]",
+                                        " waypoint [list|clear|insert ...]",
                                         //" load", " eeprom",
                                         //" fsinfo", " fsformat", " log",
                                         nullptr};
@@ -1306,6 +1424,10 @@ void Cli::execute(CliCmd& cmd, Stream::Printer& s)
   {
     _model.load();
     s.println("OK");
+  }
+  else if (std::strcmp(cmd.args[0], "waypoint") == 0)
+  {
+    handleWaypoint(cmd, s);
   }
   else if (std::strcmp(cmd.args[0], "save") == 0)
   {
