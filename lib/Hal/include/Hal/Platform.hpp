@@ -14,7 +14,10 @@
 
 #if defined(ESP32)
 #define ESPFC_HAL_LED_WS2812
+#if !defined(ESP32P4)
+/* P4 has no integrated radio: ESP-NOW would need the C6 co-processor */
 #define ESPFC_HAL_ESPNOW
+#endif
 #define ESPFC_HAL_FREE_RTOS
 #define ESPFC_HAL_DSP
 #endif

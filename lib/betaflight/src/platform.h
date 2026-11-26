@@ -23,6 +23,8 @@
 
 #if defined(ESP8266)
 #define ESPFC_TARGET "ESP8266"
+#elif defined(ESP32P4)
+#define ESPFC_TARGET "ESP32P4"
 #elif defined(ESP32S3)
 #define ESPFC_TARGET "ESP32S3"
 #elif defined(ESP32S2)

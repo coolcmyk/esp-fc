@@ -44,7 +44,7 @@ class EscDriverImpl;
 class EscDriver
 {
 public:
-#if defined(ESP32) && !defined(ESP32S2) && !defined(ESP32S3) && !defined(ESP32C3)
+#if defined(ESP32) && !defined(ESP32S2) && !defined(ESP32S3) && !defined(ESP32C3) && !defined(ESP32P4)
   static constexpr size_t CHANNEL_COUNT = 8;
 #elif defined(ARCH_RP2040)
   static constexpr size_t CHANNEL_COUNT = 8;
