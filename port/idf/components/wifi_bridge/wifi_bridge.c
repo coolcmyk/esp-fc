@@ -21,7 +21,8 @@
 
 static const char *TAG = "wifi_bridge";
 static EventGroupHandle_t s_events;
-static int s_client = -1;
+static volatile int s_client = -1;
+static volatile bool s_client_done = false;
 
 #define GOT_IP BIT0
 
@@ -69,21 +70,22 @@ static void tcp_task(void *arg) {
     int fd = accept(srv, (struct sockaddr *)&peer, &len);
     if (fd < 0) continue;
     s_client = fd;
+    s_client_done = false;
     ESP_LOGI(TAG, "client %s:%d connected", inet_ntoa(peer.sin_addr), ntohs(peer.sin_port));
 
-    // Placeholder transport loop: echo until the peer closes. The MSP stream is
-    // wired in here next.
-    uint8_t buf[256];
-    for (;;) {
-      int n = recv(fd, buf, sizeof(buf), 0);
-      if (n <= 0) break;
-      send(fd, buf, n, 0);
+    // The MSP task owns the socket from here; wait until it reports done.
+    while (!s_client_done && s_client == fd) {
+      vTaskDelay(pdMS_TO_TICKS(50));
     }
     ESP_LOGI(TAG, "client disconnected");
     close(fd);
     s_client = -1;
   }
 }
+
+int wifi_bridge_client_fd(void) { return s_client; }
+
+void wifi_bridge_release_client(void) { s_client_done = true; }
 
 void wifi_bridge_start(void) {
   s_events = xEventGroupCreate();

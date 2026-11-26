@@ -29,6 +29,13 @@ public:
     return _model.state.gyro.timer.interval;
   }
 
+  // Access for auxiliary transports (MSP over WiFi) that need the same model
+  // the serial MSP port talks to.
+  Model& model()
+  {
+    return _model;
+  }
+
   bool beginGyroTimer(Hal::HwTimer::Callback callback)
   {
     return _model.state.gyro.hwTimer.begin(getGyroInterval(), callback);

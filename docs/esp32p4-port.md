@@ -228,3 +228,23 @@ I video: stopped: 16 frames, 1215255 bytes
 So WiFi, the TCP transport and SD recording coexist in one image. The earlier
 "camera needs GPIO15" conclusion came from a standalone camera project with no
 C6 running; with SDIO alive the camera streams without any P4 clock.
+
+### MSP over WiFi (App TCP transport)
+
+`components/msp_tcp` feeds the socket bytes into the flight controller's own
+`MspProcessor` (a new `Espfc::model()` accessor shares the Model with the serial
+MSP port) and writes the responses back. The CLI path is wired too, so waypoints
+work over the same socket.
+
+Verified from the laptop, no USB attached:
+
+```
+API_VERSION over WiFi: 000130          (protocol 0, API 1.48)
+FC_VARIANT  over WiFi: BTFL
+BOARD_INFO  over WiFi: 4553504600000000 (ESPF)
+RAW_IMU     over WiFi: (0, 0, 2048)     (1 g on Z)
+MOTOR 1300  over WiFi: readback (1200,1200,1200,1200)
+```
+
+The socket is owned by the MSP task: `wifi_bridge` only accepts and waits for
+`wifi_bridge_release_client()`; its earlier echo loop was swallowing the frames.

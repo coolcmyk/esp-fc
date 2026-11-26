@@ -3,6 +3,7 @@
 
 extern "C" {
 #include "wifi_bridge.h"
+#include "msp_tcp.h"
 }
 
 #include "board_p4_nano.h"
@@ -20,6 +21,9 @@ extern "C" void app_main(void) {
   ESP_LOGI(TAG, "config load: %d", load);
   const int begin = fc.begin();
   ESP_LOGI(TAG, "begin: %d", begin);
+
+  // Serve the App's MSP over the WiFi socket, sharing the FC's model.
+  msp_tcp_start(&fc.model());
 
   for (;;) {
     fc.update();
