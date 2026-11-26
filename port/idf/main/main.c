@@ -7,6 +7,7 @@
  */
 #include <stdio.h>
 
+#include "board_p4_nano.h"
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -24,10 +25,10 @@ void app_main(void) {
     ESP_LOGI(TAG, "esp-fc P4 port: ESC PWM + loop timer");
 
     const esc_pwm_config_t escs[4] = {
-        {.pin = GPIO_NUM_6, .pulse_us = 1000, .period_us = 2500},
-        {.pin = GPIO_NUM_20, .pulse_us = 1000, .period_us = 2500},
-        {.pin = GPIO_NUM_21, .pulse_us = 1000, .period_us = 2500},
-        {.pin = GPIO_NUM_22, .pulse_us = 1000, .period_us = 2500},
+        {.pin = BOARD_ESC_GPIO_1, .pulse_us = 1000, .period_us = 2500},
+        {.pin = BOARD_ESC_GPIO_2, .pulse_us = 1000, .period_us = 2500},
+        {.pin = BOARD_ESC_GPIO_3, .pulse_us = 1000, .period_us = 2500},
+        {.pin = BOARD_ESC_GPIO_4, .pulse_us = 1000, .period_us = 2500},
     };
 
     ESP_ERROR_CHECK(esc_pwm_init(escs, 4));
