@@ -93,4 +93,10 @@ bool BusI2C::write(uint8_t devAddr, uint8_t regAddr, uint8_t length, const uint8
 
 BusI2C* getBusI2C(size_t index) { return index == 0 ? &bus0 : nullptr; }
 
+// Shared with the camera: esp_video's SCCB must not open a second bus on the
+// same port, so it reuses this one.
+i2c_master_bus_handle_t getSharedI2cBus() { return s_bus; }
+
 } // namespace Hal
+
+extern "C" i2c_master_bus_handle_t orion_i2c_bus(void) { return Hal::getSharedI2cBus(); }

@@ -27,6 +27,7 @@ idf_component_register(
   SRCS ${ESPFC_SRCS} ${HAL_SRCS} ${PRINTF_SRC} ${AHRS_GPS_C} ${AHRS_GPS_CPP} ${BF_GLUE}
   INCLUDE_DIRS
     ${CMAKE_CURRENT_LIST_DIR}/hal
+    ${CMAKE_CURRENT_LIST_DIR}/../video_rec
     ${ESPFC_ROOT}/lib/Espfc/src
     ${ESPFC_ROOT}/lib/Hal/include
     ${ESPFC_ROOT}/lib/AHRS/src
@@ -34,7 +35,7 @@ idf_component_register(
     ${ESPFC_ROOT}/lib/betaflight/src
     ${ESPFC_ROOT}/lib/MultiButton/src
     ${ESPFC_ROOT}/lib/printf/src
-  REQUIRES esp_driver_gpio esp_driver_uart esp_driver_i2c esp_driver_gptimer
+  REQUIRES video_rec esp_driver_gpio esp_driver_uart esp_driver_i2c esp_driver_gptimer
            esp_driver_rmt nvs_flash esp_timer
 )
 

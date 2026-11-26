@@ -1,6 +1,10 @@
 #include "Connect/MspProcessor.hpp"
 
 #include "Device/Input/InputMsp.hpp"
+
+extern "C" {
+#include "video_rec.h"
+}
 #include "Connect/Vtx.hpp"
 #include "Hal/Board.hpp"
 #include "Hardware.hpp"
@@ -151,6 +155,44 @@ void MspProcessor::processCommand(MspMessage& m, MspResponse& r, Stream::ReadWri
         channels[count++] = m.readU16();
       }
       Espfc::Device::Input::InputMsp::setChannels(channels, count);
+      break;
+    }
+
+    case 0x2F00: // Orion: start recording (payload: optional file name)
+    {
+      char name[32] = "orion_clip.mjpeg";
+      size_t i = 0;
+      while (m.remain() && i < sizeof(name) - 1)
+      {
+        name[i++] = char(m.readU8());
+      }
+      name[i] = '\0';
+      r.writeU8(video_rec_start(name) == ESP_OK ? 1 : 0);
+      break;
+    }
+
+    case 0x2F01: // Orion: stop recording
+      video_rec_stop();
+      r.writeU8(1);
+      break;
+
+    case 0x2F02: // Orion: record status
+    {
+      unsigned frames = 0, bytes = 0;
+      video_rec_stats(&frames, &bytes);
+      r.writeU8(video_rec_active() ? 1 : 0);
+      r.writeU16(uint16_t(frames > 0xFFFF ? 0xFFFF : frames));
+      r.writeU32(bytes);
+      break;
+    }
+
+    case 0x2F03: // Orion: list clips on the SD card
+    {
+      static char list[512];
+      if (video_rec_list(list, sizeof(list)) == ESP_OK)
+      {
+        r.writeData(list, int(strlen(list)));
+      }
       break;
     }
 
