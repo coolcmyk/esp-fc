@@ -6,6 +6,10 @@
 
 namespace Espfc {
 
+// The App's motor test (MSP_SET_MOTOR) is stopped this long after the last
+// command, so a forgotten host cannot leave the ESCs spinning.
+static constexpr uint32_t MOTOR_TEST_TIMEOUT_MS = 5000;
+
 Espfc::Espfc()
     : _hardware{_model}, _controller{_model}, _telemetry{_model}, _input{_model, _telemetry}, _actuator{_model},
       _sensor{_model}, _mixer{_model}, _blackbox{_model}, _buzzer{_model}, _serial{_model, _telemetry}
@@ -58,6 +62,18 @@ int FAST_CODE_ATTR Espfc::update(bool externalTrigger)
     if (!_model.state.gyro.timer.check()) return 0;
   }
   Utils::Stats::Measure measure(_model.state.stats, COUNTER_CPU_0);
+
+  // Motor-test safety: MSP_SET_MOTOR is sticky, so stop it 5 s after the last
+  // command. Without this a forgotten host leaves the ESCs spinning.
+  if (_model.state.output.disarmedTime && (millis() - _model.state.output.disarmedTime) > MOTOR_TEST_TIMEOUT_MS)
+  {
+    for (size_t i = 0; i < OUTPUT_CHANNELS; i++)
+    {
+      _model.state.output.disarmed[i] =
+          _model.config.output.channel[i].servo ? _model.config.output.channel[i].neutral : _model.config.output.minCommand;
+    }
+    _model.state.output.disarmedTime = 0;
+  }
 
   if constexpr (Hal::MULTI_CORE)
   {

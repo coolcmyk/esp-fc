@@ -1800,6 +1800,7 @@ void MspProcessor::processCommand(MspMessage& m, MspResponse& r, Stream::ReadWri
       {
         _model.state.output.disarmed[i] = m.readU16();
       }
+      _model.state.output.disarmedTime = millis();
       break;
 
     case MSP_SERVO:

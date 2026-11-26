@@ -161,6 +161,9 @@ struct OutputState
   float ch[OUTPUT_CHANNELS];
   int16_t us[OUTPUT_CHANNELS];
   int16_t disarmed[OUTPUT_CHANNELS];
+  // ms of the last MSP_SET_MOTOR (0 = no motor test running). The App's motor
+  // test is sticky, so it is stopped when the host stops refreshing it.
+  uint32_t disarmedTime;
   bool saturated;
   OutputTelemetryState telemetry;
 };

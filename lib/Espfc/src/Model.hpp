@@ -586,6 +586,8 @@ public:
           config.output.channel[i].servo ? config.output.channel[i].neutral : config.output.minCommand; // ROBOT
     }
 
+    state.output.disarmedTime = 0;
+
     state.buzzer.beeperMask = config.buzzer.beeperMask;
 
     state.customMixer = MixerConfig(config.customMixerCount, config.customMixes);
