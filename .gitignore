@@ -45,3 +45,5 @@ __pycache__
 /coverage.xml
 /test-report.xml
 /coverage/
+.pio-venv/
+build/

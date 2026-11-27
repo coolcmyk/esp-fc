@@ -2,9 +2,16 @@
 // pure function of time, so its shape, duration and total rotation can be
 // checked before anything spins.
 #include "Control/Emote.hpp"
+#include "Control/Controller.hpp"
+#include "Model.hpp"
+#include "Utils/Math.hpp"
+#include <ArduinoFake.h>
 #include <unity.h>
 
+using namespace fakeit;
+using namespace Espfc;
 using namespace Espfc::Control;
+using Espfc::Control::Controller;
 
 void test_flip_duration()
 {
@@ -77,6 +84,70 @@ void test_blip_opposes_rotation()
   TEST_ASSERT_FLOAT_WITHIN(0.01f, -EmoteProfile::FLIP_PEAK_DPS * EmoteProfile::BLIP_FACTOR, blip);
 }
 
+// Integration: the override has to land on the roll rate setpoint the PID sees,
+// and it has to clear itself when the profile ends.
+void test_controller_applies_emote_rate()
+{
+  ArduinoFake();
+  When(Method(ArduinoFake(Function), millis)).AlwaysReturn(5000);
+
+  Espfc::Model model;
+  model.config.mixer.type = FC_MIXER_QUADX;
+  model.config.input.rateType = RATES_TYPE_BETAFLIGHT;
+  model.config.input.rate[AXIS_ROLL] = 70;
+  model.config.input.expo[AXIS_ROLL] = 0;
+  model.config.input.superRate[AXIS_ROLL] = 0;
+  model.config.input.rateLimit[AXIS_ROLL] = 1998;
+  model.begin();
+
+  Espfc::Control::Controller controller(model);
+  controller.begin();
+
+  model.state.input.ch[AXIS_ROLL] = 0.f;
+  model.state.input.ch[AXIS_THRUST] = 0.5f;
+  model.state.emote.active = EMOTE_FLIP_360;
+  model.state.emote.direction = 1;
+  model.state.emote.startMs = 5000 - 300;   // inside the hold window
+
+  controller.outerLoop();
+
+  // 720 deg/s in the hold window
+  TEST_ASSERT_FLOAT_WITHIN(0.05f, Espfc::Utils::toRad(EmoteProfile::FLIP_PEAK_DPS),
+                                    model.state.setpoint.rate[AXIS_ROLL]);
+  // thrust boosted by 10 %
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.55f, model.state.setpoint.rate[AXIS_THRUST]);
+}
+
+void test_controller_clears_finished_emote()
+{
+  ArduinoFake();
+  When(Method(ArduinoFake(Function), millis)).AlwaysReturn(5000);
+
+  Espfc::Model model;
+  model.config.mixer.type = FC_MIXER_QUADX;
+  model.config.input.rateType = RATES_TYPE_BETAFLIGHT;
+  model.config.input.rate[AXIS_ROLL] = 70;
+  model.config.input.expo[AXIS_ROLL] = 0;
+  model.config.input.superRate[AXIS_ROLL] = 0;
+  model.config.input.rateLimit[AXIS_ROLL] = 1998;
+  model.begin();
+
+  Espfc::Control::Controller controller(model);
+  controller.begin();
+
+  model.state.input.ch[AXIS_ROLL] = 0.f;
+  model.state.input.ch[AXIS_THRUST] = 0.5f;
+  model.state.emote.active = EMOTE_FLIP_360;
+  model.state.emote.direction = 1;
+  model.state.emote.startMs = 5000 - (EmoteProfile::durationMs(EMOTE_FLIP_360) + 50);
+
+  controller.outerLoop();
+
+  TEST_ASSERT_EQUAL_UINT8(0, model.state.emote.active);
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.f, model.state.setpoint.rate[AXIS_ROLL]);
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.5f, model.state.setpoint.rate[AXIS_THRUST]);
+}
+
 int main(int argc, char** argv)
 {
   UNITY_BEGIN();
@@ -89,6 +160,8 @@ int main(int argc, char** argv)
   RUN_TEST(test_direction_flips_sign);
   RUN_TEST(test_thrust_boost_only_while_active);
   RUN_TEST(test_blip_opposes_rotation);
+  RUN_TEST(test_controller_applies_emote_rate);
+  RUN_TEST(test_controller_clears_finished_emote);
   UNITY_END();
   return 0;
 }
