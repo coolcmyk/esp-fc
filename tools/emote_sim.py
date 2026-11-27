@@ -348,14 +348,16 @@ const v3 = new THREE.Vector3();
 let last = performance.now(), spin = 0;
 
 function tick(now){
-  const dtWall = Math.min((now - last)/1000, 0.05); last = now;
+  // rAF can hand back a timestamp older than the startup value of `last`,
+  // which would make the delta negative and the index out of range.
+  const dtWall = Math.max(0, Math.min((now - last)/1000, 0.05)); last = now;
   const totalMs = total();
   if (playing){
     simT += dtWall * 1000 * speed;
     if (simT > totalMs + 400) simT = 0;
   }
   const rows = DATA[kind + '-' + dirn];
-  const i = Math.min(Math.floor(simT), rows.length - 1);
+  const i = Math.max(0, Math.min(Math.floor(simT), rows.length - 1));
   const cmd = rows[i].cmd, rate = modelRate[i], angle = modelAngle[i];
 
   quad.rotation.x = THREE.MathUtils.degToRad(angle);
