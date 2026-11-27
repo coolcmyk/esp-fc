@@ -201,6 +201,29 @@ void MspProcessor::processCommand(MspMessage& m, MspResponse& r, Stream::ReadWri
 
 #endif
 
+    case 0x2F10: // Orion: start an emote (kind: 1 flip, 2 half roll; dir: 0 right, 1 left)
+    {
+      const uint8_t kind = m.remain() ? m.readU8() : 1;
+      const uint8_t dir = m.remain() ? m.readU8() : 0;
+      if (kind >= 1 && kind <= 2 && _model.isModeActive(MODE_ARMED))
+      {
+        _model.state.emote.active = kind;
+        _model.state.emote.direction = dir ? 255 : 1;
+        _model.state.emote.startMs = millis();
+        r.writeU8(1);
+      }
+      else
+      {
+        r.writeU8(0);
+      }
+      break;
+    }
+
+    case 0x2F11: // Orion: cancel the emote
+      _model.state.emote.active = 0;
+      r.writeU8(1);
+      break;
+
     case MSP_FC_VARIANT:
       r.writeData(flightControllerIdentifier, FLIGHT_CONTROLLER_IDENTIFIER_LENGTH);
       break;

@@ -1066,6 +1066,13 @@ void handleEmote(Espfc::Model& model, Espfc::CliCmd& cmd, Stream::Printer& s)
     s.println("# usage: emote flip [l|r] | emote 180 [l|r] | emote stop");
     return;
   }
+  if (!model.isModeActive(MODE_ARMED))
+  {
+    // Firing it on the bench would only stage a manoeuvre that expires before
+    // the quad is ever in the air, so refuse and say why.
+    s.println("# not armed - arm first, then trigger the emote");
+    return;
+  }
   const int8_t dir = (cmd.args[2] && cmd.args[2][0] == 'l') ? -1 : 1;
   model.state.emote.active = uint8_t(kind);
   model.state.emote.direction = uint8_t(dir > 0 ? 1 : 255);
