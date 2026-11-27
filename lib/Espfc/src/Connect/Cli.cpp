@@ -1,5 +1,6 @@
 #include "Connect/Cli.hpp"
 #include "Hal/Time.hpp"
+#include "Control/Emote.hpp"
 #include "Device/GyroDevice.hpp"
 #include "Hal/Board.hpp"
 #include "Hal/Wifi.hpp"
@@ -1043,6 +1044,40 @@ void handleMotorTest(Espfc::Model& model, Espfc::CliCmd& cmd, Stream::Printer& s
 
 } // namespace
 
+
+namespace {
+
+// emote: scripted manoeuvres. "emote flip [l|r]", "emote 180 [l|r]", "emote stop".
+void handleEmote(Espfc::Model& model, Espfc::CliCmd& cmd, Stream::Printer& s)
+{
+  using namespace Espfc::Control;
+  const char* sub = cmd.args[1];
+  if (!sub || std::strcmp(sub, "stop") == 0)
+  {
+    model.state.emote.active = 0;
+    s.println("emote stopped");
+    return;
+  }
+  EmoteKind kind = EMOTE_NONE;
+  if (std::strcmp(sub, "flip") == 0) kind = EMOTE_FLIP_360;
+  else if (std::strcmp(sub, "180") == 0) kind = EMOTE_ROLL_180;
+  if (kind == EMOTE_NONE)
+  {
+    s.println("# usage: emote flip [l|r] | emote 180 [l|r] | emote stop");
+    return;
+  }
+  const int8_t dir = (cmd.args[2] && cmd.args[2][0] == 'l') ? -1 : 1;
+  model.state.emote.active = uint8_t(kind);
+  model.state.emote.direction = uint8_t(dir > 0 ? 1 : 255);
+  model.state.emote.startMs = millis();
+  s.print("emote "); s.print(sub);
+  s.print(dir > 0 ? " right, " : " left, ");
+  s.print(int(EmoteProfile::durationMs(kind)));
+  s.println(" ms");
+}
+
+} // namespace
+
 bool Cli::process(const char c, CliCmd& cmd, Stream::Printer& stream)
 {
   // configurator handshake
@@ -1153,7 +1188,7 @@ void Cli::execute(CliCmd& cmd, Stream::Printer& s)
     static const char* const helps[] = {"available commands:", " help", " dump", " get param", " set param value ...",
                                         " cal [gyro]", " defaults", " save", " reboot", " scaler", " mixer", " stats",
                                         " status", " devinfo", " version", " logs", " gps [set_home|clear_home]",
-                                        " waypoint [list|clear|insert ...]", " mtest [seq|<ch> <us>|stop]",
+                                        " waypoint [list|clear|insert ...]", " mtest [seq|<ch> <us>|stop]", " emote [flip|180|stop] [l|r]",
                                         //" load", " eeprom",
                                         //" fsinfo", " fsformat", " log",
                                         nullptr};
@@ -1481,6 +1516,10 @@ void Cli::execute(CliCmd& cmd, Stream::Printer& s)
   {
     _model.load();
     s.println("OK");
+  }
+  else if (std::strcmp(cmd.args[0], "emote") == 0)
+  {
+    handleEmote(_model, cmd, s);
   }
   else if (std::strcmp(cmd.args[0], "mtest") == 0)
   {

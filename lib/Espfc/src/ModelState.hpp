@@ -172,6 +172,13 @@ struct OutputState
   OutputTelemetryState telemetry;
 };
 
+struct EmoteState
+{
+  uint8_t active;    // EmoteKind, 0 = idle
+  uint8_t direction; // 1 = right roll, 255 = left roll (int8_t -1)
+  uint32_t startMs;
+};
+
 struct InputState
 {
   size_t channelCount;
@@ -508,6 +515,7 @@ struct ModelState
   GpsState gps;
 
   InputState input;
+  EmoteState emote;
   FailsafeState failsafe;
 
   AttitudeState attitude;

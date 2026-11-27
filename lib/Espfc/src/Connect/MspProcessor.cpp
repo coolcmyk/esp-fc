@@ -3,7 +3,9 @@
 #include "Device/Input/InputMsp.hpp"
 
 extern "C" {
+#if defined(ESP32P4)
 #include "video_rec.h"
+#endif
 }
 #include "Connect/Vtx.hpp"
 #include "Hal/Board.hpp"
@@ -158,6 +160,7 @@ void MspProcessor::processCommand(MspMessage& m, MspResponse& r, Stream::ReadWri
       break;
     }
 
+#if defined(ESP32P4)
     case 0x2F00: // Orion: start recording (payload: optional file name)
     {
       char name[32] = "orion_clip.mjpeg";
@@ -195,6 +198,8 @@ void MspProcessor::processCommand(MspMessage& m, MspResponse& r, Stream::ReadWri
       }
       break;
     }
+
+#endif
 
     case MSP_FC_VARIANT:
       r.writeData(flightControllerIdentifier, FLIGHT_CONTROLLER_IDENTIFIER_LENGTH);

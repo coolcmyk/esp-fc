@@ -1,4 +1,5 @@
 #include "Control/Controller.hpp"
+#include "Control/Emote.hpp"
 #include "Hal/FastCode.hpp"
 #include "Hal/Time.hpp"
 #include "Utils/Math.hpp"
@@ -172,6 +173,24 @@ void FAST_CODE_ATTR Controller::outerLoop()
   else
   {
     _model.state.setpoint.rate[AXIS_THRUST] = _model.state.input.ch[AXIS_THRUST];
+  }
+
+  // Emote override: a scripted manoeuvre replaces the roll rate setpoint (and
+  // boosts thrust) while it runs. The rate PID still does the flying.
+  if (_model.state.emote.active)
+  {
+    const auto kind = static_cast<EmoteKind>(_model.state.emote.active);
+    const uint32_t elapsed = millis() - _model.state.emote.startMs;
+    if (elapsed >= EmoteProfile::durationMs(kind))
+    {
+      _model.state.emote.active = 0;
+    }
+    else
+    {
+      _model.state.setpoint.rate[AXIS_ROLL] = Utils::toRad(
+          EmoteProfile::rateDps(kind, elapsed, static_cast<int8_t>(_model.state.emote.direction)));
+      _model.state.setpoint.rate[AXIS_THRUST] *= EmoteProfile::thrustScale(kind, elapsed);
+    }
   }
 
   // debug

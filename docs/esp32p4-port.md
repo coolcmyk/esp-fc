@@ -248,3 +248,35 @@ MOTOR 1300  over WiFi: readback (1200,1200,1200,1200)
 
 The socket is owned by the MSP task: `wifi_bridge` only accepts and waits for
 `wifi_bridge_release_client()`; its earlier echo loop was swallowing the frames.
+
+## Emote: 360 flip
+
+`Control/Emote.hpp` is a pure profile generator: it produces a roll rate
+setpoint and a thrust scale as a function of elapsed time, and the normal rate
+PID flies it. `Controller::outerLoop()` applies it while `state.emote.active`.
+
+```
+ramp 100 ms -> hold 390 ms at 720 deg/s -> decel 120 ms -> counter blip 30 ms
+total 640 ms, ~360 deg of rotation, thrust x1.1 while active
+```
+
+Trigger from the CLI (not armed in the bench build; the hook is in the control
+path so it flies when armed):
+
+```
+emote flip [l|r]    # 360 roll
+emote 180 [l|r]     # half roll, the safe first attempt
+emote stop
+```
+
+Testing before flight:
+
+```bash
+pio test -e native -f test_emote      # 9 host tests, no hardware
+python3 tools/emote_sim.py            # writes build/flip.html, opens in a browser
+```
+
+The simulator parses the constants straight out of `Emote.hpp`, so it cannot
+drift from the firmware. With a 45 ms airframe lag the modelled 360 flip lands
+at 353 deg and the 180 roll at 173.5 deg - close enough that the real test is
+whether the PID tracks the profile, not the profile itself.
